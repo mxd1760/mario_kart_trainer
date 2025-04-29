@@ -4,17 +4,20 @@
 use rusqlite::{Connection, Result};
 use tracker_app_view::TrackerAppView;
 
-mod app_error;
-mod database;
+mod shared_error;
+mod app_database;
 mod tracker_app_view;
 mod data_model;
 
 
 
 
-fn main() -> Result<(),app_error::AppError> {
+
+
+
+fn main() -> Result<(),shared_error::SharedError> {
     let conn = Connection::open("times.db")?;
-    database::init_db(&conn)?;
+    app_database::init_db(&conn)?;
 
     let app = TrackerAppView::new(conn);
     let options = eframe::NativeOptions::default();

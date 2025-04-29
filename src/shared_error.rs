@@ -1,30 +1,30 @@
 use std::fmt;
 
 #[derive(Debug)]
-pub enum AppError {
+pub enum SharedError {
     Sqlite(rusqlite::Error),
     Eframe(eframe::Error),
 }
 
 // Implement fmt::Display for AppError to make it easier to print errors
-impl fmt::Display for AppError {
+impl fmt::Display for SharedError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            AppError::Sqlite(err) => write!(f, "SQLite Error: {}", err),
-            AppError::Eframe(err) => write!(f, "eFrame Error: {}", err),
+            SharedError::Sqlite(err) => write!(f, "SQLite Error: {}", err),
+            SharedError::Eframe(err) => write!(f, "eFrame Error: {}", err),
         }
     }
 }
 
 // Implement From trait to easily convert other error types into AppError
-impl From<rusqlite::Error> for AppError {
+impl From<rusqlite::Error> for SharedError {
     fn from(err: rusqlite::Error) -> Self {
-        AppError::Sqlite(err)
+        SharedError::Sqlite(err)
     }
 }
 
-impl From<eframe::Error> for AppError {
+impl From<eframe::Error> for SharedError {
     fn from(err: eframe::Error) -> Self {
-        AppError::Eframe(err)
+        SharedError::Eframe(err)
     }
 }

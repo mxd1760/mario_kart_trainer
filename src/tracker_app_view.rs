@@ -1,7 +1,7 @@
 use eframe::egui;
 use rusqlite::Connection;
 use crate::data_model;
-use crate::database;
+use crate::app_database;
 
 pub struct TrackerAppView {
   conn: Connection,
@@ -13,7 +13,7 @@ pub struct TrackerAppView {
 
 impl TrackerAppView {
   pub fn new(conn: Connection) -> Self {
-      let records = database::fetch_times(&conn).unwrap_or_default();
+      let records = app_database::fetch_times(&conn).unwrap_or_default();
       Self {
           conn,
           track_input: String::new(),
@@ -49,8 +49,8 @@ impl eframe::App for TrackerAppView {
                   self.time_input.parse::<f32>(),
                   !self.track_input.is_empty() && !self.date_input.is_empty(),
               ) {
-                  if database::insert_time(&self.conn, &self.track_input, time, &self.date_input).is_ok() {
-                      self.records = database::fetch_times(&self.conn).unwrap_or_default();
+                  if app_database::insert_time(&self.conn, &self.track_input, time, &self.date_input).is_ok() {
+                      self.records = app_database::fetch_times(&self.conn).unwrap_or_default();
                       self.track_input.clear();
                       self.time_input.clear();
                       self.date_input.clear();

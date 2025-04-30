@@ -16,7 +16,7 @@ mod data_model;
 
 
 fn main() -> Result<(),shared_error::SharedError> {
-    let conn = Connection::open("times.db")?;
+    let conn = Connection::open("times.db")?; // TODO file should be in local storage of some kind
     app_database::init_db(&conn)?;
 
     let app = TrackerAppView::new(conn);

@@ -1,4 +1,6 @@
-use strum_macros::{EnumIter,Display};
+use std::borrow::Cow;
+
+use strum_macros::{Display, EnumIter, EnumString};
 
 use chrono::{TimeDelta,NaiveDate};
 
@@ -6,7 +8,7 @@ use chrono::{TimeDelta,NaiveDate};
 pub mod database_queries;
 
 
-#[derive(Debug)]
+#[derive(Debug,Clone)]
 pub struct FormattedTime{
   pub hours:i8,
   pub minutes:i8,
@@ -20,6 +22,23 @@ impl FormattedTime{
   }
   pub fn not_zero(&self)->bool{
     return !(self.hours==0 && self.minutes==0 && self.seconds==0 && self.millis==0)
+  }
+  pub fn to_display_str(&self)->String{
+    match self.hours{
+      0=>format!("{:02}:{:02}:{:03}", self.minutes, self.seconds, self.millis),
+      _=>format!("{:02}:{:02}:{:02}:{:03}", self.hours, self.minutes, self.seconds, self.millis)
+    }
+  }
+  pub fn to_db_str(&self)->String{
+    format!("{:02}:{:02}:{:02}:{:03}", self.hours, self.minutes, self.seconds, self.millis)
+  }
+  pub fn from_db_str(val:&str)->Self{
+    let items:Vec<&str> = val.split(":").collect();
+    FormattedTime { 
+      hours: items[0].parse().unwrap(), 
+      minutes: items[1].parse().unwrap(), 
+      seconds: items[2].parse().unwrap(), 
+      millis: items[3].parse().unwrap() }
   }
 }
 
@@ -61,13 +80,26 @@ impl TTLapTime{
 pub struct Run{
   id:i32,
   category:Category,
+  final_time:FormattedTime,
+  user_id:i16,
   date:NaiveDate,
 }
 
 impl Run{
-
+  pub fn get_display_str(&self)->String{
+    format!("{} in {} on {}",self.final_time.to_display_str(),self.category.to_display_str(),self.date)
+  }
 }
 
+
+pub struct User{
+  pub id:i16,
+  name:Cow<'static,str>,
+}
+
+impl User{
+  pub const NO_USER:User = User{id:-1,name:Cow::Borrowed("No one")};
+}
 
 
 #[derive(Debug,PartialEq,Clone)]
@@ -77,9 +109,27 @@ pub struct Rules{
 }
 
 impl Default for Rules{
-    fn default() -> Self {
-        Self { b_200cc: Default::default(), b_items: Default::default() }
-    }
+  fn default() -> Self {
+      Self { b_200cc: Default::default(), b_items: Default::default() }
+  }
+}
+
+impl Rules{
+  fn to_string(&self)->String{
+    format!("{} - {}",if self.b_200cc {"200cc"} else {"150cc"}, if self.b_items {"Items"} else {"No Items"})
+  }
+  fn from_str(val:&str)->Self{
+    let items:Vec<&str> = val.split("-").collect();
+    let cc = match items[0].trim(){
+      "200cc" => true,
+      _=>false
+    };
+    let it = match items[1].trim(){
+      "Items" => true,
+      _=>false
+    };
+    Rules{b_200cc:cc,b_items:it}
+  }
 }
 
 #[derive(Debug,EnumIter,Display,PartialEq,Clone)]
@@ -108,8 +158,80 @@ pub enum Category{
   Dlc5_6(Rules),
 }
 
+impl Category{
+  pub fn to_db_str(&self)->String{
+    match self{
+      Category::TimeTrial(_200cc, track) => format!("TT - {} - {}",track, if *_200cc {"200cc"} else {"150cc"}),
+      Category::SingleCup(rules, cup) =>format!("SC - {} - {}",cup,rules.to_string()),
+      Category::All96(rules) => format!("96 - {}",rules.to_string()),
+      Category::Og48(rules) => format!("OG - {}",rules.to_string()),
+      Category::Bcp48(rules) => format!("BP - {}",rules.to_string()),
+      Category::Nitro(rules) => format!("NI - {}",rules.to_string()),
+      Category::Retro(rules) => format!("RE - {}",rules.to_string()),
+      Category::Bonus(rules) => format!("BO - {}",rules.to_string()),
+      Category::Dlc1_2(rules) => format!("D1 - {}",rules.to_string()),
+      Category::Dlc3_4(rules) => format!("D2 - {}",rules.to_string()),
+      Category::Dlc5_6(rules) => format!("D3 - {}",rules.to_string()),
+    }
+  }
+  pub fn to_display_str(&self)->String{
+    match self{
+      Category::TimeTrial(_200cc, track) => format!("{} - {} - {}",self,track, if *_200cc {"200cc"} else {"150cc"}),
+      Category::SingleCup(rules, cup) =>format!("{} - {} - {}",self,cup,rules.to_string()),
+      Category::All96(rules) => format!("{} - {}",self,rules.to_string()),
+      Category::Og48(rules) => format!("{} - {}",self,rules.to_string()),
+      Category::Bcp48(rules) => format!("{} - {}",self,rules.to_string()),
+      Category::Nitro(rules) => format!("{} - {}",self,rules.to_string()),
+      Category::Retro(rules) => format!("{} - {}",self,rules.to_string()),
+      Category::Bonus(rules) => format!("{} - {}",self,rules.to_string()),
+      Category::Dlc1_2(rules) => format!("{} - {}",self,rules.to_string()),
+      Category::Dlc3_4(rules) => format!("{} - {}",self,rules.to_string()),
+      Category::Dlc5_6(rules) => format!("{} - {}",self,rules.to_string()),
+    }
+  }
+  pub fn from_db_str(val: &str)->Self{
+    let id = &val[..2];
+    match id{
+      "TT"=>{
+        let items:Vec<&str> = val[5..].split("-").collect();
+        let mb_track = items[0].trim();
+        println!("mb track: {}",mb_track);
+        let track:Tracks = mb_track.parse::<Tracks>().unwrap();
+        let cc = match items[1].trim(){
+          "200cc" => true,
+          _=>false
+        };
 
-#[derive(Debug,EnumIter,Display,PartialEq,Clone)]
+        Category::TimeTrial(cc, track)
+      },
+      "SC"=>{
+        let items:Vec<&str> = val[5..].split("-").collect();
+        let cup:Cups = items[0].trim().parse::<Cups>().unwrap();
+        let cc = match items[1].trim(){
+          "200cc" => true,
+          _=>false
+        };
+        let it = match items[2].trim(){
+          "Items" => true,
+          _=>false
+        };
+        Category::SingleCup(Rules{b_200cc:cc,b_items:it},cup)
+      },
+      "96"=>Category::All96(Rules::from_str(&val[5..])),
+      "OG"=>Category::Og48(Rules::from_str(&val[5..])),
+      "BP"=>Category::Bcp48(Rules::from_str(&val[5..])),
+      "NI"=>Category::Nitro(Rules::from_str(&val[5..])),
+      "RE"=>Category::Retro(Rules::from_str(&val[5..])),
+      "BO"=>Category::Bonus(Rules::from_str(&val[5..])),
+      "D1"=>Category::Dlc1_2(Rules::from_str(&val[5..])),
+      "D2"=>Category::Dlc3_4(Rules::from_str(&val[5..])),
+      "D3"=>Category::Dlc5_6(Rules::from_str(&val[5..])),
+      _=>panic!("invalid category in db")
+    }
+  }
+}
+
+#[derive(Debug,EnumIter,Display,EnumString,PartialEq,Clone)]
 #[strum(serialize_all="title_case")]
 pub enum Cups{
   MushroomCup,    FlowerCup,    StarCup,      SpecialCup,
@@ -158,7 +280,7 @@ impl Default for Cups {
     }
 }
 
-#[derive(Debug,EnumIter,Display,PartialEq,Clone)]
+#[derive(Debug,EnumIter,Display,EnumString,PartialEq,Clone)]
 #[strum(serialize_all="title_case")]
 pub enum Tracks{
   MarioKartStadium, WaterPark,        SweetSweetCanyon, ThwompRuins,

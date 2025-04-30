@@ -1,13 +1,17 @@
+use chrono::Local;
 use eframe::egui;
 use eframe::egui::Ui;
 use rusqlite::Connection;
 use strum::IntoEnumIterator;
 use crate::data_model;
 use crate::app_database;
+use crate::data_model::database_queries::DatabaseTableItem;
 use crate::data_model::Category;
 use crate::data_model::Cups;
+use crate::data_model::Run;
 use crate::data_model::Tracks;
 use crate::data_model::FormattedTime;
+use crate::data_model::User;
 
 pub struct TrackerAppView {
   conn: Connection,
@@ -16,20 +20,22 @@ pub struct TrackerAppView {
   category:Category,
   track:Tracks,
   cup:Cups,
+  user:String,
 
   prev_cc:bool,
   prev_items:bool,
   prev_category:Category,
   prev_track:Tracks,
   prev_cup:Cups,
+  prev_user:String,
 
   time:FormattedTime,
-  records: Vec<data_model::TrackTime>,
+  records: Vec<data_model::Run>,
 }
 
 impl TrackerAppView {
   pub fn new(conn: Connection) -> Self {
-      let records = app_database::fetch_times(&conn).unwrap_or_default();
+      let records = Run::database_get_all(&conn).unwrap();
       Self {
           conn,
           cc:true,
@@ -37,12 +43,14 @@ impl TrackerAppView {
           category:Category::TimeTrial(true,Tracks::MarioKartStadium),
           track:Tracks::MarioKartStadium,
           cup:Cups::MushroomCup,
+          user:"".to_owned(),
 
           prev_cc:true,
           prev_items:false,
           prev_category:Category::TimeTrial(true,Tracks::MarioKartStadium),
           prev_track:Tracks::MarioKartStadium,
           prev_cup:Cups::MushroomCup,
+          prev_user:"".to_owned(),
 
           time:FormattedTime::new(0,0,0,0),
           records,
@@ -155,20 +163,20 @@ impl eframe::App for TrackerAppView {
             reset_time = true;
           }
 
+          if ui.button("Add Record").clicked() {
+            if self.time.not_zero() {
+              println!("TODO Input time {:?}",self.time);
+              if Run::database_insert(&self.conn,self.category.clone(),self.time.clone(),User::NO_USER.id,Local::now().date_naive()).is_ok() {
+                self.records = Run::database_get_all(&self.conn).unwrap();
+                reset_time = true;
+              }
+            }
+          }
+
           if reset_time{
             self.time = FormattedTime::new(0,0,0,0);
           }
 
-          
-          if ui.button("Add Record").clicked() {
-              if self.time.not_zero() {
-                println!("TODO Input time {:?}",self.time)
-                  // if app_database::insert_time(&self.conn).is_ok() {
-                  //     self.records = app_database::fetch_times(&self.conn).unwrap_or_default();
-                  //     self.time_input.clear();
-                  // }
-              }
-          }
 
           ui.separator();
           ui.heading("Recorded Times");

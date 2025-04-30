@@ -1,5 +1,8 @@
 use rusqlite::{params,Connection,Result};
-use crate::data_model::TrackTime;
+use crate::data_model::{
+  TrackTime,
+  database_queries::DatabaseTableItem
+};
 
 pub fn init_db(conn: &Connection) -> Result<()> {
   conn.execute(
@@ -22,15 +25,10 @@ pub fn insert_time(conn: &Connection, track: &str, time_seconds: f32, date: &str
   Ok(())
 }
 
-pub fn fetch_times(conn: &Connection) -> Result<Vec<TrackTime>> {
+pub fn fetch_times<T:DatabaseTableItem>(conn: &Connection) -> Result<Vec<T>> {
   let mut stmt = conn.prepare("SELECT id, track, time_seconds, date FROM track_times")?;
   let times = stmt.query_map([], |row| {
-    Ok(TrackTime::new( 
-        row.get(0)?,
-        row.get(1)?,
-        row.get(2)?,
-        row.get(3)?,
-    ))
+    Ok(T::instance_from_row(row))
   })?;
   Ok(times.filter_map(Result::ok).collect())
 }

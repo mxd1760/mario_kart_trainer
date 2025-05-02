@@ -4,7 +4,8 @@ use std::fmt;
 pub enum SharedError {
     Sqlite(rusqlite::Error),
     Eframe(eframe::Error),
-    ParseError(chrono::ParseError)
+    ParseError(chrono::ParseError),
+    MkTrainer(String)
 }
 
 // Implement fmt::Display for AppError to make it easier to print errors
@@ -14,6 +15,7 @@ impl fmt::Display for SharedError {
             SharedError::Sqlite(err) => write!(f, "SQLite Error: {}", err),
             SharedError::Eframe(err) => write!(f, "eFrame Error: {}", err),
             SharedError::ParseError(err) =>  write!(f, "ParseError: {}", err),
+            SharedError::MkTrainer(err) => write!(f, "MkTrainer: {}", err),
         }
     }
 }

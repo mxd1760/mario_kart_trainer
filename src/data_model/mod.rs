@@ -4,6 +4,8 @@ use strum_macros::{Display, EnumIter, EnumString};
 
 use chrono::{TimeDelta,NaiveDate};
 
+use crate::app_database::DataManager;
+
 
 pub mod database_queries;
 
@@ -86,8 +88,8 @@ pub struct Run{
 }
 
 impl Run{
-  pub fn get_display_str(&self)->String{
-    format!("{} in {} on {}",self.final_time.to_display_str(),self.category.to_display_str(),self.date)
+  pub fn get_display_str(&self,dm:&DataManager)->String{
+    format!("{} in {} on {} by {}",self.final_time.to_display_str(),self.category.to_display_str(),self.date,dm.fetch_user_by_id(self.user_id.into()).unwrap().name)
   }
 }
 
@@ -116,7 +118,7 @@ impl Default for Rules{
 
 impl Rules{
   fn to_string(&self)->String{
-    format!("{} - {}",if self.b_200cc {"200cc"} else {"150cc"}, if self.b_items {"Items"} else {"No Items"})
+    format!("{} - {}",if self.b_200cc {"200cc"} else {"150cc"}, if self.b_items {"With Items"} else {"No Items"})
   }
   fn from_str(val:&str)->Self{
     let items:Vec<&str> = val.split("-").collect();
@@ -189,13 +191,28 @@ impl Category{
       Category::Dlc5_6(rules) => format!("{} - {}",self,rules.to_string()),
     }
   }
+  pub fn submit(&self,track:&Tracks,cup:&Cups,items:bool,cc:bool)->Self{
+      match self{
+        Category::TimeTrial(_, _) => Category::TimeTrial(cc,track.clone()),
+        Category::SingleCup(_, _) => Category::SingleCup(Rules{b_200cc:cc,b_items:items},cup.clone()),
+        Category::All96(_) => Category::All96(Rules{b_200cc:cc,b_items:items}),
+        Category::Og48(_) => Category::Og48(Rules{b_200cc:cc,b_items:items}),
+        Category::Bcp48(_) => Category::Bcp48(Rules{b_200cc:cc,b_items:items}),
+        Category::Nitro(_) => Category::Nitro(Rules{b_200cc:cc,b_items:items}),
+        Category::Retro(_) => Category::Retro(Rules{b_200cc:cc,b_items:items}),
+        Category::Bonus(_) => Category::Bonus(Rules{b_200cc:cc,b_items:items}),
+        Category::Dlc1_2(_) => Category::Dlc1_2(Rules{b_200cc:cc,b_items:items}),
+        Category::Dlc3_4(_) => Category::Dlc3_4(Rules{b_200cc:cc,b_items:items}),
+        Category::Dlc5_6(_) => Category::Dlc5_6(Rules{b_200cc:cc,b_items:items}),
+          }
+  }
   pub fn from_db_str(val: &str)->Self{
     let id = &val[..2];
     match id{
       "TT"=>{
         let items:Vec<&str> = val[5..].split("-").collect();
         let mb_track = items[0].trim();
-        println!("mb track: {}",mb_track);
+        //println!("mb track: {}",mb_track);
         let track:Tracks = mb_track.parse::<Tracks>().unwrap();
         let cc = match items[1].trim(){
           "200cc" => true,
@@ -246,29 +263,29 @@ impl Cups{
   pub fn get_tracks(&self) -> Vec<Tracks>{
     match self{
         Cups::MushroomCup =>    vec![Tracks::MarioKartStadium, Tracks::WaterPark,        Tracks::SweetSweetCanyon, Tracks::ThwompRuins],
-        Cups::FlowerCup =>      vec![Tracks::MarioCircuit,     Tracks::ToadHarbor,       Tracks::TwistedMansion,   Tracks::ShyGuyFalls,],
-        Cups::StarCup =>        vec![Tracks::SunshineAirport,  Tracks::DolphinShoals,    Tracks::Electrodrome,     Tracks::MountWario,],
-        Cups::SpecialCup =>     vec![Tracks::CloudtopCruise,   Tracks::BoneDryDunes,     Tracks::BowsersCastle,    Tracks::RainbowRoad,],
-        Cups::ShellCup =>       vec![Tracks::MooMooMeadows,    Tracks::BGAMarioCircuit,  Tracks::CheepCheepBeach,  Tracks::ToadsTurnpike,],
-        Cups::BananaCup =>      vec![Tracks::DryDryDesert,     Tracks::DonutPlains3,     Tracks::RoyalRaceway,     Tracks::DKJungle,],
-        Cups::LeafCup =>        vec![Tracks::WarioStadium,     Tracks::SherbetLand,      Tracks::MusicPark,        Tracks::YoshiValley,],
-        Cups::LightningCup =>   vec![Tracks::TickTockClock,    Tracks::PiranhaPlantSlide,Tracks::GrumbleVolcano,   Tracks::N64RainbowRoad,],
-        Cups::EggCup =>         vec![Tracks::YoshiCircuit,     Tracks::ExcitebikeArena,  Tracks::DragonDriftway,   Tracks::MuteCity,],
-        Cups::TriforceCup =>    vec![Tracks::WariosGoldmine,   Tracks::SNESRainbowRoad,  Tracks::IceIceOutpost,    Tracks::HyruleCircuit,],
-        Cups::CrossingCup =>    vec![Tracks::BabyPark,         Tracks::CheeseLand,       Tracks::WildWoods,        Tracks::AnimalCrossing,],
-        Cups::BellCup =>        vec![Tracks::NeoBowserCity,    Tracks::RibbonRoad,       Tracks::SuperBellSubway,  Tracks::BigBlue,],
-        Cups::GoldenDashCup =>  vec![Tracks::ParisPromenade,   Tracks::ToadCircuit,      Tracks::ChocoMountain,    Tracks::CoconutMall,],
-        Cups::LuckyCatCup =>    vec![Tracks::TokyoBlur,        Tracks::ShroomRidge,      Tracks::SkyGarden,        Tracks::NinjaHideaway,],
-        Cups::TurnipCup =>      vec![Tracks::NewYorkMinute,    Tracks::MarioCircuit3,    Tracks::KalimariDesert,   Tracks::WaluigiPinball,],
-        Cups::PropellerCup =>   vec![Tracks::SydneySprint,     Tracks::SnowLand,         Tracks::MushroomGorge,    Tracks::SkyHighSundae,],
-        Cups::RockCup =>        vec![Tracks::LondonLoop,       Tracks::BooLake,          Tracks::RockRockMountain, Tracks::MapleTreeway,],
-        Cups::MoonCup =>        vec![Tracks::BerlinByways,     Tracks::PeachGardens,     Tracks::MerryMountain,    Tracks::_3DSRainbowRoad,],
-        Cups::FruitCup =>       vec![Tracks::AmsterdamDrift,   Tracks::RiversidePark,    Tracks::DKSummit,         Tracks::YoshisIsland,],
-        Cups::BoomerangCup =>   vec![Tracks::BangkokRush,      Tracks::DSMarioCircuit,   Tracks::WaluigiStadium,   Tracks::SingaporeSpeedway,],
-        Cups::FeatherCup =>     vec![Tracks::AthensDash,       Tracks::DaisyCruiser,     Tracks::MoonviewHighway,  Tracks::SqueakyCleanSprint,],
-        Cups::CherryCup =>      vec![Tracks::LosAngelesLaps,   Tracks::SunsetWilds,      Tracks::KoopaCape,        Tracks::VancouverVelocity,],
-        Cups::AcornCup =>       vec![Tracks::RomeAvanti,       Tracks::DKMountain,       Tracks::DaisyCircuit,     Tracks::PiranhaPlantCove,],
-        Cups::SpinyCup =>       vec![Tracks::MadridDrive,      Tracks::RosalinasIceWorld,Tracks::BowsersCastle3,   Tracks::WiiRainbowRoad,],
+        Cups::FlowerCup =>      vec![Tracks::MarioCircuit,     Tracks::ToadHarbor,       Tracks::TwistedMansion,   Tracks::ShyGuyFalls],
+        Cups::StarCup =>        vec![Tracks::SunshineAirport,  Tracks::DolphinShoals,    Tracks::Electrodrome,     Tracks::MountWario],
+        Cups::SpecialCup =>     vec![Tracks::CloudtopCruise,   Tracks::BoneDryDunes,     Tracks::BowsersCastle,    Tracks::RainbowRoad],
+        Cups::ShellCup =>       vec![Tracks::MooMooMeadows,    Tracks::BGAMarioCircuit,  Tracks::CheepCheepBeach,  Tracks::ToadsTurnpike],
+        Cups::BananaCup =>      vec![Tracks::DryDryDesert,     Tracks::DonutPlains3,     Tracks::RoyalRaceway,     Tracks::DKJungle],
+        Cups::LeafCup =>        vec![Tracks::WarioStadium,     Tracks::SherbetLand,      Tracks::MusicPark,        Tracks::YoshiValley],
+        Cups::LightningCup =>   vec![Tracks::TickTockClock,    Tracks::PiranhaPlantSlide,Tracks::GrumbleVolcano,   Tracks::N64RainbowRoad],
+        Cups::EggCup =>         vec![Tracks::YoshiCircuit,     Tracks::ExcitebikeArena,  Tracks::DragonDriftway,   Tracks::MuteCity],
+        Cups::TriforceCup =>    vec![Tracks::WariosGoldmine,   Tracks::SNESRainbowRoad,  Tracks::IceIceOutpost,    Tracks::HyruleCircuit],
+        Cups::CrossingCup =>    vec![Tracks::BabyPark,         Tracks::CheeseLand,       Tracks::WildWoods,        Tracks::AnimalCrossing],
+        Cups::BellCup =>        vec![Tracks::NeoBowserCity,    Tracks::RibbonRoad,       Tracks::SuperBellSubway,  Tracks::BigBlue],
+        Cups::GoldenDashCup =>  vec![Tracks::ParisPromenade,   Tracks::ToadCircuit,      Tracks::ChocoMountain,    Tracks::CoconutMall],
+        Cups::LuckyCatCup =>    vec![Tracks::TokyoBlur,        Tracks::ShroomRidge,      Tracks::SkyGarden,        Tracks::NinjaHideaway],
+        Cups::TurnipCup =>      vec![Tracks::NewYorkMinute,    Tracks::MarioCircuit3,    Tracks::KalimariDesert,   Tracks::WaluigiPinball],
+        Cups::PropellerCup =>   vec![Tracks::SydneySprint,     Tracks::SnowLand,         Tracks::MushroomGorge,    Tracks::SkyHighSundae],
+        Cups::RockCup =>        vec![Tracks::LondonLoop,       Tracks::BooLake,          Tracks::RockRockMountain, Tracks::MapleTreeway],
+        Cups::MoonCup =>        vec![Tracks::BerlinByways,     Tracks::PeachGardens,     Tracks::MerryMountain,    Tracks::_3DSRainbowRoad],
+        Cups::FruitCup =>       vec![Tracks::AmsterdamDrift,   Tracks::RiversidePark,    Tracks::DKSummit,         Tracks::YoshisIsland],
+        Cups::BoomerangCup =>   vec![Tracks::BangkokRush,      Tracks::DSMarioCircuit,   Tracks::WaluigiStadium,   Tracks::SingaporeSpeedway],
+        Cups::FeatherCup =>     vec![Tracks::AthensDash,       Tracks::DaisyCruiser,     Tracks::MoonviewHighway,  Tracks::SqueakyCleanSprint],
+        Cups::CherryCup =>      vec![Tracks::LosAngelesLaps,   Tracks::SunsetWilds,      Tracks::KoopaCape,        Tracks::VancouverVelocity],
+        Cups::AcornCup =>       vec![Tracks::RomeAvanti,       Tracks::DKMountain,       Tracks::DaisyCircuit,     Tracks::PiranhaPlantCove],
+        Cups::SpinyCup =>       vec![Tracks::MadridDrive,      Tracks::RosalinasIceWorld,Tracks::BowsersCastle3,   Tracks::WiiRainbowRoad],
     }
       
   }

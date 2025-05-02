@@ -1,8 +1,11 @@
 use chrono::Local;
 use eframe::egui;
+use eframe::egui::Align;
+use eframe::egui::Layout;
 use eframe::egui::Ui;
 use rusqlite::Connection;
 use strum::IntoEnumIterator;
+use crate::app_database::DataManager;
 use crate::data_model;
 use crate::app_database;
 use crate::data_model::database_queries::DatabaseTableItem;
@@ -14,46 +17,45 @@ use crate::data_model::FormattedTime;
 use crate::data_model::User;
 
 pub struct TrackerAppView {
-  conn: Connection,
+  dm:DataManager,
   cc:bool,
   items:bool,
   category:Category,
   track:Tracks,
   cup:Cups,
-  user:String,
+  username:String,
 
   prev_cc:bool,
   prev_items:bool,
   prev_category:Category,
   prev_track:Tracks,
   prev_cup:Cups,
-  prev_user:String,
+  prev_username:String,
 
   time:FormattedTime,
-  records: Vec<data_model::Run>,
 }
 
 impl TrackerAppView {
-  pub fn new(conn: Connection) -> Self {
-      let records = Run::database_get_all(&conn).unwrap();
+  pub fn new(mut dm:DataManager) -> Self {
+      dm.prefetch();
+      let name = dm.get_saved_username();
       Self {
-          conn,
+          dm,
           cc:true,
           items:false,
           category:Category::TimeTrial(true,Tracks::MarioKartStadium),
           track:Tracks::MarioKartStadium,
           cup:Cups::MushroomCup,
-          user:"".to_owned(),
+          username:name.clone(),
 
           prev_cc:true,
           prev_items:false,
           prev_category:Category::TimeTrial(true,Tracks::MarioKartStadium),
           prev_track:Tracks::MarioKartStadium,
           prev_cup:Cups::MushroomCup,
-          prev_user:"".to_owned(),
+          prev_username:name,
 
           time:FormattedTime::new(0,0,0,0),
-          records,
       }
   }
 }
@@ -61,7 +63,13 @@ impl TrackerAppView {
 impl eframe::App for TrackerAppView {
   fn update(&mut self, ctx: &egui::Context, _: &mut eframe::Frame) {
       egui::CentralPanel::default().show(ctx, |ui| {
-          ui.heading("Add Time Trial Record");
+          ui.horizontal(|ui|{
+            ui.heading("Add Time Trial Record");
+            ui.with_layout(Layout::right_to_left(Align::Center),|ui|{
+              ui.text_edit_singleline(&mut self.username);
+              ui.label("User: ");
+            })
+          });
 
           ui.horizontal(|ui|{
             ui.label("Speed:");
@@ -69,11 +77,7 @@ impl eframe::App for TrackerAppView {
             ui.selectable_value(&mut self.cc,false,"150cc");
           });
 
-          ui.horizontal(|ui|{
-            ui.label("Items: ");
-            ui.selectable_value(&mut self.items,false,"Only Coins");
-            ui.selectable_value(&mut self.items,true,"Default Items");
-          });
+
 
           ui.horizontal(|ui|{
             ui.label("Run Category");
@@ -129,12 +133,27 @@ impl eframe::App for TrackerAppView {
                     } 
                 });
               });
+              ui.horizontal(|ui|{
+                ui.label("Items: ");
+                ui.selectable_value(&mut self.items,false,"Only Coins");
+                ui.selectable_value(&mut self.items,true,"Default Items");
+              });
               med_time(ui, &mut self.time);
             },
             Category::All96(_) | Category::Bcp48(_) | Category::Og48(_) => {
+              ui.horizontal(|ui|{
+                ui.label("Items: ");
+                ui.selectable_value(&mut self.items,false,"Only Coins");
+                ui.selectable_value(&mut self.items,true,"Default Items");
+              });
               big_time(ui,&mut self.time);
             },
             _=>{
+              ui.horizontal(|ui|{
+                ui.label("Items: ");
+                ui.selectable_value(&mut self.items,false,"Only Coins");
+                ui.selectable_value(&mut self.items,true,"Default Items");
+              });
               med_time(ui,&mut self.time);
             }
           }
@@ -162,13 +181,25 @@ impl eframe::App for TrackerAppView {
             self.prev_cup = self.cup.clone();
             reset_time = true;
           }
+          if self.username != self.prev_username{
+            self.prev_username = self.username.clone();
+            reset_time = true;
+          }
+
 
           if ui.button("Add Record").clicked() {
-            if self.time.not_zero() {
-              println!("TODO Input time {:?}",self.time);
-              if Run::database_insert(&self.conn,self.category.clone(),self.time.clone(),User::NO_USER.id,Local::now().date_naive()).is_ok() {
-                self.records = Run::database_get_all(&self.conn).unwrap();
-                reset_time = true;
+            if self.username != "" {
+              if let Ok(user) = self.dm.fetch_user(&self.username){
+                if self.time.not_zero() {
+                  if self.dm.insert_run(
+                      self.category.submit(&self.track,&self.cup,self.items,self.cc),
+                      self.time.clone(),
+                      user.id,
+                      Local::now().date_naive()
+                  ).is_ok() {
+                    reset_time = true;
+                  }
+                }
               }
             }
           }
@@ -182,9 +213,9 @@ impl eframe::App for TrackerAppView {
           ui.heading("Recorded Times");
 
           egui::ScrollArea::vertical().show(ui, |ui| {
-              for record in &self.records {
-                  ui.label(record.get_display_str());
-              }
+            for record in &self.dm.runs {
+              ui.label(record.get_display_str(&self.dm));
+            }
           });
       });
   }
